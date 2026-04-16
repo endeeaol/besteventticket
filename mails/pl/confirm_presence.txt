@@ -1,0 +1,20 @@
+Cześć {firstname},
+
+dziękujemy za zakup biletu na wydarzenie:
+
+{event_name}
+
+Termin wydarzenia:
+{event_date}
+
+Lokalizacja:
+{event_address}
+
+Liczba biletów w tym zamówieniu: {ticket_qty}
+
+Aby potwierdzić obecność i podać dane uczestników, otwórz link:
+{confirm_url}
+
+Jeśli kupiłeś jeden bilet, po kliknięciu wystarczy potwierdzić obecność.
+
+Jeśli kupiłeś kilka biletów, możesz wpisać dane tylko tych osób, które faktycznie pojawią się na wydarzeniu.
