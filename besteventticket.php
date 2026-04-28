@@ -60,94 +60,173 @@ class BestEventTicket extends Module
     }
 
     public function getContent()
-    {
-        $output = '';
+	{
+		$output = '';
 
-        if (Tools::isSubmit('submitBestEventTicketTestToken')) {
-            $idOrder = (int) Tools::getValue('BET_TEST_ID_ORDER');
-            $idProduct = (int) Tools::getValue('BET_TEST_ID_PRODUCT');
+		if (Tools::isSubmit('submitBestEventTicketTestToken')) {
+			$idOrder = (int) Tools::getValue('BET_TEST_ID_ORDER');
+			$idProduct = (int) Tools::getValue('BET_TEST_ID_PRODUCT');
 
-            if ($idOrder > 0 && $idProduct > 0) {
-                $token = $this->buildConfirmationToken($idOrder, $idProduct);
-                $url = $this->context->link->getModuleLink(
-                    $this->name,
-                    'confirm',
-                    ['token' => $token]
-                );
+			if ($idOrder > 0 && $idProduct > 0) {
+				$token = $this->buildConfirmationToken($idOrder, $idProduct);
+				$url = $this->context->link->getModuleLink(
+					$this->name,
+					'confirm',
+					['token' => $token]
+				);
 
-                $updated = Db::getInstance()->update(
-                    'bestlab_event_ticket',
-                    [
-                        'confirmation_token' => pSQL($token),
-                        'date_upd' => date('Y-m-d H:i:s'),
-                    ],
-                    'id_order = ' . (int) $idOrder . ' AND id_product = ' . (int) $idProduct
-                );
+				$updated = Db::getInstance()->update(
+					'bestlab_event_ticket',
+					[
+						'confirmation_token' => pSQL($token),
+						'date_upd' => date('Y-m-d H:i:s'),
+					],
+					'id_order = ' . (int) $idOrder . ' AND id_product = ' . (int) $idProduct
+				);
 
-                if ($updated) {
-                    $output .= $this->displayConfirmation(
-                        $this->l('Wygenerowano i przypisano token. Link testowy:') .
-                        '<br><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '" target="_blank">' .
-                        htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '</a>'
-                    );
-                } else {
-                    $output .= $this->displayError($this->l('Nie udało się przypisać tokenu do rekordów.'));
-                }
-            } else {
-                $output .= $this->displayError($this->l('Podaj poprawne ID zamówienia i ID produktu.'));
-            }
-        }
+				if ($updated) {
+					$output .= $this->displayConfirmation(
+						$this->l('Wygenerowano i przypisano token. Link testowy:') .
+						'<br><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '" target="_blank">' .
+						htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '</a>'
+					);
+				} else {
+					$output .= $this->displayError($this->l('Nie udało się przypisać tokenu do rekordów.'));
+				}
+			} else {
+				$output .= $this->displayError($this->l('Podaj poprawne ID zamówienia i ID produktu.'));
+			}
+		}
 
-        $fieldsForm = [
-            'form' => [
-                'legend' => [
-                    'title' => $this->l('Test generatora linku'),
-                    'icon' => 'icon-ticket',
-                ],
-                'input' => [
-                    [
-                        'type' => 'text',
-                        'label' => $this->l('ID zamówienia'),
-                        'name' => 'BET_TEST_ID_ORDER',
-                        'required' => true,
-                    ],
-                    [
-                        'type' => 'text',
-                        'label' => $this->l('ID produktu'),
-                        'name' => 'BET_TEST_ID_PRODUCT',
-                        'required' => true,
-                        'desc' => $this->l('Np. 95 / 96 / 97'),
-                    ],
-                ],
-                'submit' => [
-                    'title' => $this->l('Generuj link testowy'),
-                    'name' => 'submitBestEventTicketTestToken',
-                ],
-            ],
-        ];
+		if (Tools::isSubmit('submitBestEventTicketSendTestMail')) {
+			$idOrder = (int) Tools::getValue('BET_MAIL_ID_ORDER');
+			$idProduct = (int) Tools::getValue('BET_MAIL_ID_PRODUCT');
+			$overrideEmail = trim((string) Tools::getValue('BET_MAIL_OVERRIDE_EMAIL'));
 
-        $helper = new HelperForm();
-        $helper->module = $this;
-        $helper->name_controller = $this->name;
-        $helper->token = Tools::getAdminTokenLite('AdminModules');
-        $helper->currentIndex = AdminController::$currentIndex . '&configure=' . $this->name;
-        $helper->submit_action = 'submitBestEventTicketTestToken';
-        $helper->fields_value = [
-            'BET_TEST_ID_ORDER' => '',
-            'BET_TEST_ID_PRODUCT' => '95',
-        ];
+			$result = $this->sendConfirmationMail(
+				$idOrder,
+				$idProduct,
+				$overrideEmail !== '' ? $overrideEmail : null
+			);
 
-        $reportUrl = $this->context->link->getAdminLink('AdminBestEventTicket');
+			if (!empty($result['success'])) {
+				$message = $result['message'];
 
-        $output .= '<div class="panel">';
-        $output .= '<h3>Raport biletów</h3>';
-        $output .= '<p><a class="btn btn-default" href="' . htmlspecialchars($reportUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank">';
-        $output .= '<i class="process-icon-preview"></i> Otwórz raport biletów';
-        $output .= '</a></p>';
-        $output .= '</div>';
+				if (!empty($result['confirm_url'])) {
+					$message .= '<br>URL potwierdzenia:<br><a href="' .
+						htmlspecialchars($result['confirm_url'], ENT_QUOTES, 'UTF-8') .
+						'" target="_blank">' .
+						htmlspecialchars($result['confirm_url'], ENT_QUOTES, 'UTF-8') .
+						'</a>';
+				}
 
-        return $output . $helper->generateForm([$fieldsForm]);
-    }
+				$output .= $this->displayConfirmation($message);
+			} else {
+				$output .= $this->displayError(
+					!empty($result['message']) ? $result['message'] : $this->l('Nie udało się wysłać maila testowego.')
+				);
+			}
+		}
+
+		$reportUrl = $this->context->link->getAdminLink('AdminBestEventTicket');
+
+		$output .= '<div class="panel">';
+		$output .= '<h3>Raport biletów</h3>';
+		$output .= '<p><a class="btn btn-default" href="' . htmlspecialchars($reportUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank">';
+		$output .= '<i class="process-icon-preview"></i> Otwórz raport biletów';
+		$output .= '</a></p>';
+		$output .= '</div>';
+
+		$helperToken = new HelperForm();
+		$helperToken->module = $this;
+		$helperToken->name_controller = $this->name;
+		$helperToken->token = Tools::getAdminTokenLite('AdminModules');
+		$helperToken->currentIndex = AdminController::$currentIndex . '&configure=' . $this->name;
+		$helperToken->submit_action = 'submitBestEventTicketTestToken';
+		$helperToken->fields_value = [
+			'BET_TEST_ID_ORDER' => (string) Tools::getValue('BET_TEST_ID_ORDER', ''),
+			'BET_TEST_ID_PRODUCT' => (string) Tools::getValue('BET_TEST_ID_PRODUCT', '95'),
+		];
+
+		$fieldsFormToken = [
+			'form' => [
+				'legend' => [
+					'title' => $this->l('Test generatora linku'),
+					'icon' => 'icon-ticket',
+				],
+				'input' => [
+					[
+						'type' => 'text',
+						'label' => $this->l('ID zamówienia'),
+						'name' => 'BET_TEST_ID_ORDER',
+						'required' => true,
+					],
+					[
+						'type' => 'text',
+						'label' => $this->l('ID produktu'),
+						'name' => 'BET_TEST_ID_PRODUCT',
+						'required' => true,
+						'desc' => $this->l('Np. 95 / 96 / 97'),
+					],
+				],
+				'submit' => [
+					'title' => $this->l('Generuj link testowy'),
+					'name' => 'submitBestEventTicketTestToken',
+				],
+			],
+		];
+
+		$helperMail = new HelperForm();
+		$helperMail->module = $this;
+		$helperMail->name_controller = $this->name;
+		$helperMail->token = Tools::getAdminTokenLite('AdminModules');
+		$helperMail->currentIndex = AdminController::$currentIndex . '&configure=' . $this->name;
+		$helperMail->submit_action = 'submitBestEventTicketSendTestMail';
+		$helperMail->fields_value = [
+			'BET_MAIL_ID_ORDER' => (string) Tools::getValue('BET_MAIL_ID_ORDER', ''),
+			'BET_MAIL_ID_PRODUCT' => (string) Tools::getValue('BET_MAIL_ID_PRODUCT', '95'),
+			'BET_MAIL_OVERRIDE_EMAIL' => (string) Tools::getValue('BET_MAIL_OVERRIDE_EMAIL', ''),
+		];
+
+		$fieldsFormMail = [
+			'form' => [
+				'legend' => [
+					'title' => $this->l('Test wysyłki maila'),
+					'icon' => 'icon-envelope',
+				],
+				'input' => [
+					[
+						'type' => 'text',
+						'label' => $this->l('ID zamówienia'),
+						'name' => 'BET_MAIL_ID_ORDER',
+						'required' => true,
+					],
+					[
+						'type' => 'text',
+						'label' => $this->l('ID produktu'),
+						'name' => 'BET_MAIL_ID_PRODUCT',
+						'required' => true,
+						'desc' => $this->l('Np. 95 / 96 / 97'),
+					],
+					[
+						'type' => 'text',
+						'label' => $this->l('Override e-mail'),
+						'name' => 'BET_MAIL_OVERRIDE_EMAIL',
+						'required' => false,
+						'desc' => $this->l('Opcjonalnie. Jeśli podasz adres, mail testowy poleci na ten adres zamiast na e-mail klienta.'),
+					],
+				],
+				'submit' => [
+					'title' => $this->l('Wyślij testowy mail'),
+					'name' => 'submitBestEventTicketSendTestMail',
+				],
+			],
+		];
+
+		return $output
+			. $helperToken->generateForm([$fieldsFormToken])
+			. $helperMail->generateForm([$fieldsFormMail]);
+	}
 
 	
 
@@ -209,11 +288,28 @@ class BestEventTicket extends Module
 
 		$row = $rows[0];
 
-		if (empty($row['confirmation_token'])) {
-			return [
-				'success' => false,
-				'message' => 'Brak confirmation_token dla tej grupy.',
-			];
+		$token = trim((string) $row['confirmation_token']);
+
+		if ($token === '') {
+			$token = $this->buildConfirmationToken($idOrder, $idProduct);
+
+			$updated = Db::getInstance()->update(
+				'bestlab_event_ticket',
+				[
+					'confirmation_token' => pSQL($token),
+					'date_upd' => date('Y-m-d H:i:s'),
+				],
+				'id_order = ' . (int) $idOrder . ' AND id_product = ' . (int) $idProduct
+			);
+
+			if (!$updated) {
+				return [
+					'success' => false,
+					'message' => 'Nie udało się wygenerować i zapisać confirmation_token dla tej grupy.',
+				];
+			}
+
+			$row['confirmation_token'] = $token;
 		}
 
 		$event = $this->getEventData($idProduct);

@@ -26,6 +26,8 @@ class BestEventTicketConfirmModuleFrontController extends ModuleFrontController
             return;
         }
 
+        $this->markMailClicked($token);
+
         if (Tools::isSubmit('submitBestEventTicketConfirmation')) {
             $result = $this->handleSubmit($tickets);
 
@@ -58,6 +60,18 @@ class BestEventTicketConfirmModuleFrontController extends ModuleFrontController
         $sql->orderBy('ticket_position ASC');
 
         return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    protected function markMailClicked(string $token): void
+    {
+        Db::getInstance()->execute('
+            UPDATE `' . _DB_PREFIX_ . 'bestlab_event_ticket`
+            SET
+                `mail_clicked` = 1,
+                `mail_clicked_at` = IF(`mail_clicked_at` IS NULL, NOW(), `mail_clicked_at`),
+                `date_upd` = NOW()
+            WHERE `confirmation_token` = "' . pSQL($token) . '"
+        ');
     }
 
     protected function buildTemplateVars(array $tickets, string $token): array

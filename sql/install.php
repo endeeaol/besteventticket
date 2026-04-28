@@ -28,6 +28,8 @@ function bestEventTicketInstallSql(): bool
         `confirmation` TINYINT(1) DEFAULT NULL,
         `confirmation_token` VARCHAR(128) DEFAULT NULL,
         `mail_sent_at` DATETIME DEFAULT NULL,
+        `mail_clicked` TINYINT(1) NOT NULL DEFAULT 0,
+        `mail_clicked_at` DATETIME DEFAULT NULL,
         `confirmed_at` DATETIME DEFAULT NULL,
         `date_order` DATETIME DEFAULT NULL,
         `date_add` DATETIME NOT NULL,
@@ -45,6 +47,54 @@ function bestEventTicketInstallSql(): bool
 
     foreach ($sql as $query) {
         if (!Db::getInstance()->execute($query)) {
+            return false;
+        }
+    }
+
+    // 🔴 KLUCZOWE: upgrade dla istniejącej tabeli
+    if (!bestEventTicketEnsureColumns()) {
+        return false;
+    }
+
+    return true;
+}
+
+function bestEventTicketEnsureColumns(): bool
+{
+    $table = _DB_PREFIX_ . 'bestlab_event_ticket';
+
+    // mail_clicked
+    $exists = Db::getInstance()->getValue('
+        SELECT COUNT(*) 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = "' . pSQL($table) . '"
+        AND COLUMN_NAME = "mail_clicked"
+    ');
+
+    if (!$exists) {
+        if (!Db::getInstance()->execute('
+            ALTER TABLE `' . $table . '`
+            ADD `mail_clicked` TINYINT(1) NOT NULL DEFAULT 0 AFTER `mail_sent_at`
+        ')) {
+            return false;
+        }
+    }
+
+    // mail_clicked_at
+    $exists = Db::getInstance()->getValue('
+        SELECT COUNT(*) 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = "' . pSQL($table) . '"
+        AND COLUMN_NAME = "mail_clicked_at"
+    ');
+
+    if (!$exists) {
+        if (!Db::getInstance()->execute('
+            ALTER TABLE `' . $table . '`
+            ADD `mail_clicked_at` DATETIME DEFAULT NULL AFTER `mail_clicked`
+        ')) {
             return false;
         }
     }

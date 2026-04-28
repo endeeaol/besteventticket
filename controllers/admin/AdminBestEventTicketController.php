@@ -16,9 +16,43 @@ class AdminBestEventTicketController extends ModuleAdminController
         $this->_defaultOrderBy = 'date_order';
         $this->_defaultOrderWay = 'DESC';
 
+        $this->_select = '
+            CASE
+                WHEN a.confirmation IS NULL THEN "Brak odpowiedzi"
+                WHEN a.confirmation = 0 THEN "Niepotwierdzone"
+                WHEN a.confirmation = 1 THEN "Potwierdzone"
+                ELSE "-"
+            END AS confirmation_label,
+            a.mail_clicked AS mail_clicked,
+            (
+                SELECT COUNT(*)
+                FROM `' . _DB_PREFIX_ . 'bestlab_event_ticket` t2
+                WHERE t2.id_order = a.id_order
+                  AND t2.id_product = a.id_product
+                  AND t2.confirmation = 1
+            ) AS group_confirmed_count,
+            "" AS status_dot
+        ';
+
         $this->fields_list = [
             'id_bestlab_event_ticket' => [
                 'title' => 'ID',
+                'class' => 'fixed-width-xs',
+            ],
+            'mail_clicked' => [
+                'title' => 'Klik',
+                'align' => 'text-center',
+                'orderby' => false,
+                'search' => false,
+                'callback' => 'renderMailClickedIcon',
+                'class' => 'fixed-width-xs',
+            ],
+            'status_dot' => [
+                'title' => '',
+                'align' => 'text-center',
+                'orderby' => false,
+                'search' => false,
+                'callback' => 'renderStatusDot',
                 'class' => 'fixed-width-xs',
             ],
             'event_name' => [
@@ -30,7 +64,7 @@ class AdminBestEventTicketController extends ModuleAdminController
                 'class' => 'fixed-width-sm',
             ],
             'id_order' => [
-                'title' => 'Nr zamówienia',
+                'title' => 'Nr zam.',
                 'class' => 'fixed-width-sm',
             ],
             'ticket_ref' => [
@@ -48,11 +82,10 @@ class AdminBestEventTicketController extends ModuleAdminController
             'guest_name' => [
                 'title' => 'Gość',
                 'filter_key' => 'a!guest_name',
+                'callback' => 'renderGuestName',
             ],
-            'confirmation_label' => [
-                'title' => 'Potwierdzenie',
-                'havingFilter' => true,
-            ],
+
+ 
             'ticket_position' => [
                 'title' => 'Poz.',
                 'class' => 'fixed-width-xs',
@@ -68,17 +101,9 @@ class AdminBestEventTicketController extends ModuleAdminController
             'confirmed_at' => [
                 'title' => 'Data potwierdzenia',
                 'type' => 'datetime',
+                'callback' => 'renderDateOrDash',
             ],
         ];
-
-        $this->_select = '
-            CASE
-                WHEN a.confirmation IS NULL THEN "Brak odpowiedzi"
-                WHEN a.confirmation = 0 THEN "Niepotwierdzone"
-                WHEN a.confirmation = 1 THEN "Potwierdzone"
-                ELSE "-"
-            END AS confirmation_label
-        ';
     }
 
     protected function getEventStats()
@@ -183,6 +208,7 @@ class AdminBestEventTicketController extends ModuleAdminController
                 a.customer_firstname,
                 a.customer_lastname,
                 a.guest_name,
+                a.mail_clicked,
                 a.confirmation,
                 a.ticket_position,
                 a.qty_in_order,
@@ -207,6 +233,7 @@ class AdminBestEventTicketController extends ModuleAdminController
             'customer_firstname',
             'customer_lastname',
             'guest_name',
+            'klik',
             'confirmation',
             'ticket_position',
             'qty_in_order',
@@ -225,7 +252,8 @@ class AdminBestEventTicketController extends ModuleAdminController
                 $row['customer_firstname'],
                 $row['customer_lastname'],
                 $row['guest_name'],
-                $row['confirmation'],
+                !empty($row['mail_clicked']) ? '🌞' : '',
+                $this->mapConfirmationForCsv($row['confirmation']),
                 $row['ticket_position'],
                 $row['qty_in_order'],
                 $row['date_order'],
@@ -235,5 +263,77 @@ class AdminBestEventTicketController extends ModuleAdminController
 
         fclose($output);
         exit;
+    }
+
+    public function renderGuestName($value, $row)
+    {
+        return ($value !== null && $value !== '') ? $value : '--';
+    }
+
+    public function renderMailClickedIcon($value, $row)
+    {
+        return !empty($row['mail_clicked']) ? '<span style="font-size:18px">🐥</span>' : '';
+    }
+
+    public function renderStatusDot($value, $row)
+    {
+        $isConfirmed = isset($row['confirmation']) && (int) $row['confirmation'] === 1;
+        $isClicked = !empty($row['mail_clicked']);
+        $groupConfirmed = !empty($row['group_confirmed_count']) && (int) $row['group_confirmed_count'] > 0;
+
+        if ($isConfirmed) {
+            return '<span style="
+                display:inline-block;
+                width:8px;
+                height:8px;
+                border-radius:50%;
+                background:#28a745;
+                vertical-align:middle;
+            "></span>';
+        }
+
+        if ($isClicked || $groupConfirmed) {
+            return '<span style="
+                display:inline-block;
+                width:8px;
+                height:8px;
+                border-radius:50%;
+                background:#e10600;
+                vertical-align:middle;
+            "></span>';
+        }
+
+        return '';
+    }
+
+    public function renderConfirmationLabel($value, $row)
+    {
+        if ($value === null || $value === '') {
+            return 'Brak odpowiedzi';
+        }
+
+        return (string) $value;
+    }
+
+    public function renderDateOrDash($value, $row)
+    {
+        return ($value !== null && $value !== '' && $value !== '0000-00-00 00:00:00') ? $value : '--';
+    }
+
+    protected function mapConfirmationForCsv($value)
+    {
+        if ($value === null || $value === '') {
+            return 'Brak odpowiedzi';
+        }
+
+        if ((int) $value === 0) {
+            return 'Niepotwierdzone';
+        }
+
+        if ((int) $value === 1) {
+            return 'Potwierdzone';
+        }
+
+        return '-';
     }
 }
